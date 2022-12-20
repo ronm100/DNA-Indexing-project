@@ -2,6 +2,7 @@ from itertools import product
 from typing import Tuple
 import numpy as np
 import math
+import galois
 
 HMPLMR_LEN = 5
 
@@ -13,6 +14,13 @@ def has_bad_sequence(l: Tuple) -> bool:
                                                         l[i: i + HMPLMR_LEN] == [2] * HMPLMR_LEN or \
                                                         l[i: i + HMPLMR_LEN] == [3] * HMPLMR_LEN:
             return True
+
+
+def get_code_dimensions(data_len: int) -> (int,int):
+    for i in range(100):
+        if data_len <= (4 ** i) - 1 - i:
+            return (4 ** i) - 1, (4 ** i) - 1 - i
+    return None, None # Shouldnt get here
 
 def calc_parity_bits(data: np.array):
     n_parity = math.ceil(math.log2(len(data))) + 1
@@ -38,12 +46,21 @@ def calc_parity_bits(data: np.array):
     #     redundancy[parity] = 4 - sum(data[i - 1] for i in range(1, len(data) + 1) if i % (2 ** (parity + 1)) % 4) % 4
     return redundancy
 
-def get_generator_matrix(data_len):
-    gen = np.eye(data_len)
-    redundancy = np.apply_along_axis(calc_parity_bits, 1, gen)
-    gen = np.concatenate((gen,redundancy), axis=1)
-    return gen
+# def get_generator_matrix(data_len):
+#     gen = np.eye(data_len)
+#     redundancy = np.apply_along_axis(calc_parity_bits, 1, gen)
+#     gen = np.concatenate((gen,redundancy), axis=1)
+#     return gen
 
+def get_generator_matrix(data_len):
+    message_len, total_data_len = get_code_dimensions(data_len)
+    parity_len = message_len - total_data_len
+    non_zero_vecs = product([0, 1], repeat=parity_len)
+    A_mat = [vec for vec in non_zero_vecs if sum(vec) > 1]
+    A_mat = np.array(A_mat)
+    A_trans = np.transpose(A_mat)
+    gen = np.concatenate((A_mat, np.eye()), axis=1)
+    return gen
 
 def create_indices(k: int):
     vector_space = [0, 1, 2, 3]
