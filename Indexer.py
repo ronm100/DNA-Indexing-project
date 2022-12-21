@@ -1,28 +1,29 @@
 from itertools import product
 from typing import Tuple
 import numpy as np
-import math
 import galois
 
 HMPLMR_LEN = 5
 
 
-def has_bad_sequence(l: Tuple) -> bool:
-    l = list(l)
-    for i in range(len(l) - HMPLMR_LEN + 1):
-        if l[i: i + HMPLMR_LEN] == [0] * HMPLMR_LEN or l[i: i + HMPLMR_LEN] == [1] * HMPLMR_LEN or \
-                l[i: i + HMPLMR_LEN] == [2] * HMPLMR_LEN or \
-                l[i: i + HMPLMR_LEN] == [3] * HMPLMR_LEN:
+def has_bad_sequence(vec: Tuple) -> bool:
+    vec = list(vec)
+    for i in range(len(vec) - HMPLMR_LEN + 1):
+        if vec[i: i + HMPLMR_LEN] == [0] * HMPLMR_LEN or vec[i: i + HMPLMR_LEN] == [1] * HMPLMR_LEN or \
+                vec[i: i + HMPLMR_LEN] == [2] * HMPLMR_LEN or \
+                vec[i: i + HMPLMR_LEN] == [3] * HMPLMR_LEN:
             return True
 
 
-def get_code_dimensions(data_len: int) -> (int, int):
+def get_code_dimensions(data_len: int) -> Tuple[int, int]:
     for i in range(100):
         if data_len <= (4 ** i) - 1 - i:
             return (4 ** i) - 1, (4 ** i) - 1 - i
-    return None, None  # Shouldnt get here
+    return None, None  # Shouldn't get here
+
 
 def get_generator_matrix(data_len):
+    # returns A matrix
     message_len, total_data_len = get_code_dimensions(data_len)
     parity_len = message_len - total_data_len
     non_zero_vecs = product([0, 1], repeat=parity_len)
@@ -35,9 +36,12 @@ def get_generator_matrix(data_len):
 def create_indices(k: int):
     vector_space = [0, 1, 2, 3]
     all_vectors = product(vector_space, repeat=k)
-    filtered_vectors = [np.array(vec) for vec in all_vectors if not has_bad_sequence(vec)]
+    message_len, total_data_len = get_code_dimensions(k)
+    filtered_vectors = [np.pad(np.array(vec), (0, total_data_len - k), 'constant', constant_values=(0, 0)) for vec in
+                        all_vectors if not has_bad_sequence(vec)]
     gen_matrix = get_generator_matrix(data_len=k)
-    filtered_codes = [np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors]
+    all_codes = [np.concatenate(vec, np.dot(vec.transpose(), gen_matrix)) for vec in filtered_vectors]
+    filtered_codes = [code for code in all_codes if not has_bad_sequence(code)]
     # code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
     return filtered_codes
 
