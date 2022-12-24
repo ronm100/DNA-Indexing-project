@@ -41,35 +41,36 @@ def get_parity_check_matrix(message_len, redundancy_len):
     return parity_check_matrix
 
 
-def get_generator_matrix(data_len):
+def get_generator_matrix(message_len, redundancy_len):
     # returns A matrix
-    message_len, total_data_len = get_code_dimensions(data_len)
-    parity_len = message_len - total_data_len
+    parity_check_matrix = get_parity_check_matrix(message_len, redundancy_len)
+    # Delete I cols to get A matrix
+    idx_to_delete = []
+    for col_idx in range(len(parity_check_matrix.T)):
+        if sum(parity_check_matrix[:, col_idx]) == 1:
+            idx_to_delete.append(col_idx)
+    A_matrix_tr = GF(np.delete(parity_check_matrix, idx_to_delete, axis=1))
+    A_matrix = -A_matrix_tr.T
 
-    non_zero_vecs = product([0, 1], repeat=parity_len)
-    A_trans = [vec for vec in non_zero_vecs if sum(vec) > 1]
-    A_trans = GF(A_trans)
-    A_mat = np.transpose(-A_trans)
-    return A_mat
+    return A_matrix
 
 
 def create_indices(k: int):
     vector_space = [0, 1, 2, 3]
     all_vectors = product(vector_space, repeat=k)
-    message_len, total_data_len = get_code_dimensions(k)
+    message_len, redundancy_len = get_code_dimensions(k)
+    total_data_len = message_len - redundancy_len
     filtered_vectors = [np.pad(np.array(vec), (0, total_data_len - k), 'constant', constant_values=(0, 0)) for vec in
                         all_vectors if not has_bad_sequence(vec)]
-    gen_matrix = get_generator_matrix(data_len=k)
-    all_codes = [np.concatenate(vec, np.dot(vec.transpose(), gen_matrix)) for vec in filtered_vectors]
+    gen_matrix = get_generator_matrix(message_len, redundancy_len)
+    all_codes = [np.concatenate(vec, np.dot(GF(vec.transpose()), gen_matrix)) for vec in filtered_vectors]
     filtered_codes = [code for code in all_codes if not has_bad_sequence(code)]
     # code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
     return filtered_codes
 
 
 if __name__ == '__main__':
-    me, re = get_code_dimensions(18)
-    a = get_parity_check_matrix(me, re)
-    # GF = galois.GF(4)
+    GF = galois.GF(4)
     # create_indices(k=13)
     # get_generator_matrix(7,4)
     # x = calc_parity_bits(np.array([1,0,0,0]))
