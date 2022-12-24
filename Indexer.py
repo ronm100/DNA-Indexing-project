@@ -38,7 +38,7 @@ def get_parity_check_matrix(message_len, redundancy_len):
         parity_check_matrix = np.concatenate([parity_check_matrix, block], axis=1)
         total_len += 4 ** curr_block_exp
         curr_block_exp += 1
-    return parity_check_matrix
+    return parity_check_matrix.astype(int)
 
 
 def get_generator_matrix(message_len, redundancy_len):
@@ -60,10 +60,10 @@ def create_indices(k: int):
     all_vectors = product(vector_space, repeat=k)
     message_len, redundancy_len = get_code_dimensions(k)
     total_data_len = message_len - redundancy_len
-    filtered_vectors = [np.pad(np.array(vec), (0, total_data_len - k), 'constant', constant_values=(0, 0)) for vec in
+    filtered_vectors = [np.pad(np.array(vec), (0, int(total_data_len - k)), 'constant', constant_values=(0, 0)) for vec in
                         all_vectors if not has_bad_sequence(vec)]
-    gen_matrix = get_generator_matrix(message_len, redundancy_len)
-    all_codes = [np.concatenate(vec, np.dot(GF(vec.transpose()), gen_matrix)) for vec in filtered_vectors]
+    gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
+    all_codes = [np.concatenate([vec, np.matmul(GF(vec.transpose()), gen_matrix)]) for vec in filtered_vectors]
     filtered_codes = [code for code in all_codes if not has_bad_sequence(code)]
     # code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
     return filtered_codes
@@ -71,7 +71,7 @@ def create_indices(k: int):
 
 if __name__ == '__main__':
     GF = galois.GF(4)
-    # create_indices(k=13)
+    code_book = create_indices(k=3)
     # get_generator_matrix(7,4)
     # x = calc_parity_bits(np.array([1,0,0,0]))
     a = 1
