@@ -3,9 +3,8 @@ from typing import Tuple
 import numpy as np
 import math
 import galois
-
+from filtered_vectors import FilteredVectors
 HMPLMR_LEN = 5
-
 
 def has_bad_sequence(vec: Tuple) -> bool:
     vec = list(vec)
@@ -57,11 +56,9 @@ def get_generator_matrix(message_len, redundancy_len):
 
 def create_indices(k: int):
     vector_space = [0, 1, 2, 3]
-    all_vectors = product(vector_space, repeat=k)
     message_len, redundancy_len = get_code_dimensions(k)
     total_data_len = message_len - redundancy_len
-    filtered_vectors = [np.pad(np.array(vec), (0, int(total_data_len - k)), 'constant', constant_values=(0, 0)) for vec in
-                        all_vectors if not has_bad_sequence(vec)]
+    filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN, padding=total_data_len - k).generate_vectors()
     gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
     all_codes = [np.concatenate([vec, np.matmul(GF(vec.transpose()), gen_matrix)]) for vec in filtered_vectors]
     filtered_codes = [code for code in all_codes if not has_bad_sequence(code)]
@@ -71,7 +68,6 @@ def create_indices(k: int):
 
 if __name__ == '__main__':
     GF = galois.GF(4)
-    code_book = create_indices(k=3)
-    # get_generator_matrix(7,4)
-    # x = calc_parity_bits(np.array([1,0,0,0]))
-    a = 1
+    code_book = create_indices(k=7)
+    # filtered_vectors = FilteredVectors(vec_size=3, hmplmr_size=2).generate_vectors()
+    # print(filtered_vectors)
