@@ -24,7 +24,8 @@ class FilteredVectors:
             return
         curr_vec.append(node)
         if len(curr_vec) == self.vec_size:
-            self.vectors.append(np.pad(np.array(curr_vec), (0, self.padding), 'constant', constant_values=(1, 1)))
+            # self.vectors.append(np.pad(np.array(curr_vec), (0, self.padding), 'constant', constant_values=(1, 1)))
+            self.vectors.append(np.pad(np.array(curr_vec), (0, self.padding), 'wrap'))
         else:
             for i in range(4):
                 self.__explore_node(i, curr_vec)
