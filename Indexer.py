@@ -4,6 +4,9 @@ import numpy as np
 import math
 import galois
 from filtered_vectors import FilteredVectors
+from edlib import align
+
+GF = galois.GF(4)
 HMPLMR_LEN = 5
 
 def has_bad_sequence(vec: Tuple) -> bool:
@@ -54,7 +57,7 @@ def get_generator_matrix(message_len, redundancy_len):
     return A_matrix
 
 
-def create_indices(k: int):
+def create_indices(k: int, save_code_book: bool = False):
     vector_space = [0, 1, 2, 3]
     message_len, redundancy_len = get_code_dimensions(k)
     total_data_len = message_len - redundancy_len
@@ -62,12 +65,23 @@ def create_indices(k: int):
     gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
     all_codes = [np.concatenate([vec, np.matmul(GF(vec.transpose()), gen_matrix)]) for vec in filtered_vectors]
     filtered_codes = [code for code in all_codes if not has_bad_sequence(code)]
-    # code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
+    #code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
+    if save_code_book:
+        with open(f'code_book_{message_len}.npy', 'wb') as f:
+            np.save(f, np.array(filtered_codes))
     return filtered_codes
+
+def get_edit_dist_matrix (code_list: list):
+    shape = len(code_list),len(code_list)
+    matrix = np.zeros(shape = shape, dtype= np.int8) - np.ones(shape = shape, dtype= np.int8)
+    for i in range(len(code_list)):
+        for j in range(i+1, len(code_list)):
+            matrix[i][j] = align(str(code_list[i]), str(code_list[j]))['editDistance'] < 3
+    return matrix
 
 
 if __name__ == '__main__':
-    GF = galois.GF(4)
-    code_book = create_indices(k=7)
+    code_book = create_indices(k=7, save_code_book = True)
+    distance_matrix =  get_edit_dist_matrix(code_book)
     # filtered_vectors = FilteredVectors(vec_size=3, hmplmr_size=2).generate_vectors()
     # print(filtered_vectors)
