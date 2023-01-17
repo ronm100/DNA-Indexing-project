@@ -97,9 +97,10 @@ def get_edit_dist_matrix(code_list: list):
 
 
 if __name__ == '__main__':
-    code_book = create_indices(k=3, save_code_book=False)
+    code_book = create_indices(k=3, save_code_book=True)
     distance_matrix = get_edit_dist_matrix(code_book)
     print('done')
+    print(f'shape {distance_matrix.shape}')
     print(distance_matrix)
     # filtered_vectors = FilteredVectors(vec_size=3, hmplmr_size=2).generate_vectors()
     # print(filtered_vectors)
