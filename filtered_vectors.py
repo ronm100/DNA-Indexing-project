@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class FilteredVectors:
     def __init__(self, vec_size, hmplmr_size, padding):
         self.vec_size = vec_size

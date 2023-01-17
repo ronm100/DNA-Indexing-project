@@ -21,7 +21,7 @@ def has_bad_sequence(vec: Tuple) -> bool:
 
 
 def get_code_dimensions(data_len: int) -> Tuple[int, int]:
-    for redundancy_len in range(100):
+    for redundancy_len in range(data_len):
         message_len = ((4 ** redundancy_len) - 1) / 3
         if data_len <= message_len - redundancy_len:
             return message_len, redundancy_len
@@ -89,27 +89,29 @@ def get_edit_dist_matrix(code_list: list):
     with Pool() as p:
         results = list(p.map(calc_edit_dist, word_tuples))
 
-    shape = len(code_list), len(code_list)
+    dim = len(code_list)
+    shape = dim, dim
     matrix = np.zeros(shape=shape, dtype=np.int8)
     for dist, i, j in results:
         matrix[i][j] = dist
     return matrix
 
 
-def filter_codes_by_edit_dits(init_code_book, distance_matrix):
+def filter_codes_by_edit_dist(init_code_book, distance_matrix):
     # while np.any(distance_matrix):
     #     bad_row_indices = np.where(np.any(distance_matrix > 0, axis=1))
     bad_row_indices = np.where(np.any(distance_matrix > 0, axis=1))
     bad_words = init_code_book[bad_row_indices]
-    filtered_code_book = [word for word in init_code_book if not word in bad_words]
+    filtered_code_book = [word for word in init_code_book if word not in bad_words]
     return filtered_code_book
 
 
 if __name__ == '__main__':
-    code_book = create_indices(k=3, save_code_book=True)
-    distance_matrix = get_edit_dist_matrix(code_book)
+    unfiltered_code_book = create_indices(k=3, save_code_book=True)
+    distance_mat = get_edit_dist_matrix(unfiltered_code_book)
+    filtered_code_bookv= filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)
     print('done')
-    print(f'shape {distance_matrix.shape}')
-    print(distance_matrix)
+    print(f'shape {distance_mat.shape}')
+    print(distance_mat)
     # filtered_vectors = FilteredVectors(vec_size=3, hmplmr_size=2).generate_vectors()
     # print(filtered_vectors)
