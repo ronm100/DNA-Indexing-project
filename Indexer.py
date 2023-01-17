@@ -75,7 +75,8 @@ def create_indices(k: int, save_code_book: bool = False):
     return filtered_codes
 
 
-def calc_edit_dist(word1, word2, i, j):
+def calc_edit_dist(words_tuple):
+    word1, word2, i, j = words_tuple
     return align(str(word1), str(word2))['editDistance'] < 3, i, j
 
 
