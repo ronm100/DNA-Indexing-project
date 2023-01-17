@@ -96,6 +96,15 @@ def get_edit_dist_matrix(code_list: list):
     return matrix
 
 
+def filter_codes_by_edit_dits(init_code_book, distance_matrix):
+    # while np.any(distance_matrix):
+    #     bad_row_indices = np.where(np.any(distance_matrix > 0, axis=1))
+    bad_row_indices = np.where(np.any(distance_matrix > 0, axis=1))
+    bad_words = init_code_book[bad_row_indices]
+    filtered_code_book = [word for word in init_code_book if not word in bad_words]
+    return filtered_code_book
+
+
 if __name__ == '__main__':
     code_book = create_indices(k=3, save_code_book=True)
     distance_matrix = get_edit_dist_matrix(code_book)
