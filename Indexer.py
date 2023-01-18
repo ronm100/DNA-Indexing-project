@@ -6,9 +6,31 @@ import galois
 from filtered_vectors import FilteredVectors
 from multiprocessing import Pool
 from edlib import align
+import time
 
 GF = galois.GF(4)
 HMPLMR_LEN = 5
+
+
+def levenshtein_with_limit(str1, str2, limit=3):
+    m, n = len(str1), len(str2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+
+    for i in range(m + 1):
+        dp[i][0] = i
+    for j in range(n + 1):
+        dp[0][j] = j
+
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if j == n and min(dp[i]) >= limit:
+                return limit
+            if str1[i - 1] == str2[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1]
+            else:
+                dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+
+    return dp[m][n]
 
 
 def has_bad_sequence(vec: Tuple) -> bool:
@@ -80,14 +102,27 @@ def calc_edit_dist(words_tuple):
     return align(str(word1), str(word2))['editDistance'] < 3, i, j
 
 
+def calc_edit_dist_man(words_tuple):
+    word1, word2, i, j = words_tuple
+    return levenshtein_with_limit(str(word1), str(word2)) < 3, i, j
+
+
 def get_edit_dist_matrix(code_list: list):
     word_tuples = list()
     for i in range(len(code_list)):
         for j in range(i + 1, len(code_list)):
             word_tuples.append((code_list[i], code_list[j], i, j))
-
+    time_0 = time.time()
     with Pool() as p:
         results = list(p.map(calc_edit_dist, word_tuples))
+    time_1 = time.time()
+    with Pool() as p:
+        results2 = list(p.map(calc_edit_dist_man, word_tuples))
+    time_2 = time.time()
+    print(f'edlib took {time_1 - time_0}')
+    print(f'levenshtein_with_limit took {time_2 - time_1}')
+    print(f'resulst == results2?  {results == results2}')
+
 
     dim = len(code_list)
     shape = dim, dim
@@ -109,7 +144,7 @@ def filter_codes_by_edit_dist(init_code_book, distance_matrix):
 if __name__ == '__main__':
     unfiltered_code_book = create_indices(k=3, save_code_book=True)
     distance_mat = get_edit_dist_matrix(unfiltered_code_book)
-    filtered_code_bookv= filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)
+    filtered_code_book = filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)
     print('done')
     print(f'shape {distance_mat.shape}')
     print(distance_mat)
