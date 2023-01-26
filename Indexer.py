@@ -82,9 +82,10 @@ def get_generator_matrix(message_len, redundancy_len):
 
 
 def create_indices(k: int, save_code_book: bool = False):
-    vector_space = [0, 1, 2, 3]
+    print('starting get_code_dimensions')
     message_len, redundancy_len = get_code_dimensions(k)
     total_data_len = message_len - redundancy_len
+    print('starting FilteredVectors')
     filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN,
                                        padding=total_data_len - k).generate_vectors()
     print('starting gen mat')
