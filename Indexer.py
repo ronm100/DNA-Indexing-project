@@ -87,7 +87,7 @@ def create_indices(k: int, save_code_book: bool = False):
     total_data_len = message_len - redundancy_len
     print('starting FilteredVectors')
     filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN,
-                                       padding=total_data_len - k).generate_vectors()
+                                       padding=total_data_len - k, save_vectors=save_code_book).generate_vectors()
     print('starting gen mat')
     gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
     all_codes = [np.concatenate([vec, np.matmul(GF(vec.transpose()), gen_matrix)]) for vec in filtered_vectors]
