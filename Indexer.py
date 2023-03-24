@@ -45,9 +45,9 @@ def has_bad_sequence(vec: Tuple) -> bool:
 def get_code_dimensions(data_len: int) -> Tuple[int, int]:
     for redundancy_len in range(data_len):
         message_len = ((4 ** redundancy_len) - 1) / 3
-        if data_len <= message_len - redundancy_len:
+        if data_len == message_len - redundancy_len:
             return message_len, redundancy_len
-    return None, None  # Shouldn't get here
+    raise ValueError('data_len is probably too big')
 
 
 def get_parity_check_matrix(message_len, redundancy_len):
@@ -68,9 +68,9 @@ def get_parity_check_matrix(message_len, redundancy_len):
 
 
 def get_generator_matrix(message_len, redundancy_len):
-    # returns A matrix
+    # returns 'A' matrix
     parity_check_matrix = get_parity_check_matrix(message_len, redundancy_len)
-    # Delete I cols to get A matrix
+    # Delete 'I' cols to get 'A' matrix
     idx_to_delete = []
     for col_idx in range(len(parity_check_matrix.T)):
         if sum(parity_check_matrix[:, col_idx]) == 1:
@@ -154,10 +154,15 @@ def filter_codes_by_edit_dist(init_code_book, distance_matrix):
 
 if __name__ == '__main__':
     unfiltered_code_book = create_indices(k=18, save_code_book=True)
-    distance_mat = get_edit_dist_matrix(unfiltered_code_book)
-    filtered_code_book = filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)
-    print('done')
-    print(f'shape {distance_mat.shape}')
-    print(distance_mat)
+    # distance_mat = get_edit_dist_matrix(unfiltered_code_book)
+    # filtered_code_book = filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)
+    # print('done')
+    # print(f'shape {distance_mat.shape}')
+    # print(distance_mat)
     # filtered_vectors = FilteredVectors(vec_size=3, hmplmr_size=2).generate_vectors()
     # print(filtered_vectors)
+
+
+
+
+# cmd = /usr/bin/python3 -u /home_nfs/ronmaishlos/DNA-Indexing-project/Indexer.py 2>&1 | tee out.log
