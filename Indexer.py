@@ -95,24 +95,20 @@ def create_indices(k: int, save_code_book: bool = False):
         # filtered_vectors = np.split(filtered_vectors, indices_or_sections=filtered_vectors.shape[0], axis=0)
         # filtered_vectors = [np.squeeze(vec) for vec in filtered_vectors]
     gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
-    # all_codes = [np.concatenate([vec, np.matmul(GF(vec.transpose()), gen_matrix)]) for vec in filtered_vectors]
     all_codes = np.concatenate((filtered_vectors, np.matmul(GF(filtered_vectors), gen_matrix)), axis=1)
-    # filtered_codes = all_codes[has_bad_sequence(all_codes[:,:])]
-    # filtered_codes = list()
-    # for i in range(all_codes.shape[0]):
-    #     if i % 250000 == 0:
-    #         print(f'{i / 5000000}% filtered')
-    #     code = np.squeeze(all_codes[i,:])
-    #     if not has_bad_sequence(code):
-    #         filtered_codes.append(code)
-
-    filtered_codes = [all_codes[i,:] for i in range(all_codes.shape[0]) if not has_bad_sequence(all_codes[i,:])]
-    filtered_codes = np.array(filtered_codes)
+    time_0 = time.time()
+    filter = np.concatenate((np.expand_dims(np.amin(all_codes[:,14:19], axis=1) == np.amax(all_codes[:,14:19], axis=1),axis=1),
+                        np.expand_dims(np.amin(all_codes[:,15:20], axis=1) == np.amax(all_codes[:,15:20], axis=1),axis=1),
+                        np.expand_dims(np.amin(all_codes[:,16:21], axis=1) == np.amax(all_codes[:,16:21], axis=1),axis=1)), axis=1)
+    filter = np.any(filter, axis=1)
+    filtered_codes = all_codes[~filter]
+    time_1 = time.time()
     print(f'filtered codes shape: {filtered_codes.shape}')
+    print(f'filtering took {time_1-time_0} secs')
     # code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
     # if save_code_book:
-    #     with open(f'code_book_{message_len}.npy', 'wb') as f:
-    #         np.save(f, np.array(filtered_codes))
+    # with open(f'generated_vectors610_filtered/filtered_vecs_18_1.npy', 'wb') as f:
+    #     np.save(f, np.array(filtered_codes))
     print('finish create indices')
     return filtered_codes
 
@@ -133,19 +129,19 @@ def calc_edit_dist_man(words_tuple):
 
 def get_edit_dist_matrix(code_list: list):
     word_tuples = list()
+    time_0 = time.time()
     for i in range(len(code_list)):
         for j in range(i + 1, len(code_list)):
             word_tuples.append((code_list[i], code_list[j], i, j))
-    time_0 = time.time()
-    print('starting Pool')
+    time_1 = time.time()
+    print(f'tuples took {time_1 - time_0}, starting Pool')
     with Pool() as p:
         results = list(p.map(calc_edit_dist, word_tuples))
-    time_1 = time.time()
     # with Pool() as p:
     #     results2 = list(p.map(calc_edit_dist_man, word_tuples))
     time_2 = time.time()
-    print(f'edlib took {time_1 - time_0}')
-    print(f'levenshtein_with_limit took {time_2 - time_1}')
+    print(f'edlib took {time_2 - time_1}')
+    # print(f'levenshtein_with_limit took {time_2 - time_1}')
     # print(f'resulst == results2?  {results == results2}')
 
 
@@ -171,7 +167,11 @@ def filter_codes_by_edit_dist(init_code_book, distance_matrix):
 
 if __name__ == '__main__':
     unfiltered_code_book = create_indices(k=18, save_code_book=False)
+
+    # unfiltered_code_book = np.load('generated_vectors610_filtered/filtered_vecs_18_1.npy')
     # distance_mat = get_edit_dist_matrix(unfiltered_code_book)
+
+
     # filtered_code_book = filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)
     # print('done')
     # print(f'shape {distance_mat.shape}')
