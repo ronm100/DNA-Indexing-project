@@ -3,13 +3,14 @@ from typing import Tuple
 import numpy as np
 import math
 import galois
-from filtered_vectors import FilteredVectors
+from filtered_vectors import FilteredVectors, VECTOR_SERIALIZATION_THRESHOLD
 from multiprocessing import Pool
 from edlib import align
 import time
 
 GF = galois.GF(4)
 HMPLMR_LEN = 5
+VECS_PER_FILE = 50000
 
 
 def levenshtein_with_limit(str1, str2, limit=3):
@@ -86,16 +87,32 @@ def create_indices(k: int, save_code_book: bool = False):
     message_len, redundancy_len = get_code_dimensions(k)
     total_data_len = message_len - redundancy_len
     print('starting FilteredVectors')
-    filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN,
-                                       padding=total_data_len - k, save_vectors=save_code_book).generate_vectors()
+    # filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN,
+    #                                    padding=total_data_len - k, save_vectors=save_code_book).generate_vectors()
     print('starting gen mat')
+    if not save_code_book:
+        filtered_vectors = np.load('generated_vectors610/filtered_vecs_18_1.npy')
+        # filtered_vectors = np.split(filtered_vectors, indices_or_sections=filtered_vectors.shape[0], axis=0)
+        # filtered_vectors = [np.squeeze(vec) for vec in filtered_vectors]
     gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
-    all_codes = [np.concatenate([vec, np.matmul(GF(vec.transpose()), gen_matrix)]) for vec in filtered_vectors]
-    filtered_codes = [code for code in all_codes if not has_bad_sequence(code)]
+    # all_codes = [np.concatenate([vec, np.matmul(GF(vec.transpose()), gen_matrix)]) for vec in filtered_vectors]
+    all_codes = np.concatenate((filtered_vectors, np.matmul(GF(filtered_vectors), gen_matrix)), axis=1)
+    # filtered_codes = all_codes[has_bad_sequence(all_codes[:,:])]
+    # filtered_codes = list()
+    # for i in range(all_codes.shape[0]):
+    #     if i % 250000 == 0:
+    #         print(f'{i / 5000000}% filtered')
+    #     code = np.squeeze(all_codes[i,:])
+    #     if not has_bad_sequence(code):
+    #         filtered_codes.append(code)
+
+    filtered_codes = [all_codes[i,:] for i in range(all_codes.shape[0]) if not has_bad_sequence(all_codes[i,:])]
+    filtered_codes = np.array(filtered_codes)
+    print(f'filtered codes shape: {filtered_codes.shape}')
     # code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
-    if save_code_book:
-        with open(f'code_book_{message_len}.npy', 'wb') as f:
-            np.save(f, np.array(filtered_codes))
+    # if save_code_book:
+    #     with open(f'code_book_{message_len}.npy', 'wb') as f:
+    #         np.save(f, np.array(filtered_codes))
     print('finish create indices')
     return filtered_codes
 
@@ -153,7 +170,7 @@ def filter_codes_by_edit_dist(init_code_book, distance_matrix):
 
 
 if __name__ == '__main__':
-    unfiltered_code_book = create_indices(k=18, save_code_book=True)
+    unfiltered_code_book = create_indices(k=18, save_code_book=False)
     # distance_mat = get_edit_dist_matrix(unfiltered_code_book)
     # filtered_code_book = filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)
     # print('done')
