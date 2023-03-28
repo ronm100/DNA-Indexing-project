@@ -1,6 +1,8 @@
 from itertools import product
+from pathlib import Path
 from typing import Tuple
 import numpy as np
+import os
 import math
 import galois
 from filtered_vectors import FilteredVectors, VECTOR_SERIALIZATION_THRESHOLD
@@ -82,35 +84,34 @@ def get_generator_matrix(message_len, redundancy_len):
     return A_matrix
 
 
-def create_indices(k: int, save_code_book: bool = False):
+def create_indices(k: int):
     print('starting get_code_dimensions')
     message_len, redundancy_len = get_code_dimensions(k)
-    total_data_len = message_len - redundancy_len
-    print('starting FilteredVectors')
-    # filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN,
-    #                                    padding=total_data_len - k, save_vectors=save_code_book).generate_vectors()
+    # total_data_len = message_len - redundancy_len
+    # print('starting FilteredVectors')
+    # # filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN,
+    # #                                    padding=total_data_len - k, save_vectors=save_code_book).generate_vectors()
     print('starting gen mat')
-    if not save_code_book:
-        filtered_vectors = np.load('generated_vectors610/filtered_vecs_18_1.npy')
-        # filtered_vectors = np.split(filtered_vectors, indices_or_sections=filtered_vectors.shape[0], axis=0)
-        # filtered_vectors = [np.squeeze(vec) for vec in filtered_vectors]
     gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
-    all_codes = np.concatenate((filtered_vectors, np.matmul(GF(filtered_vectors), gen_matrix)), axis=1)
-    time_0 = time.time()
-    filter = np.concatenate((np.expand_dims(np.amin(all_codes[:,14:19], axis=1) == np.amax(all_codes[:,14:19], axis=1),axis=1),
-                        np.expand_dims(np.amin(all_codes[:,15:20], axis=1) == np.amax(all_codes[:,15:20], axis=1),axis=1),
-                        np.expand_dims(np.amin(all_codes[:,16:21], axis=1) == np.amax(all_codes[:,16:21], axis=1),axis=1)), axis=1)
-    filter = np.any(filter, axis=1)
-    filtered_codes = all_codes[~filter]
-    time_1 = time.time()
-    print(f'filtered codes shape: {filtered_codes.shape}')
-    print(f'filtering took {time_1-time_0} secs')
+    for filename in os.listdir('generated_vectors610'):
+        filtered_vectors = np.load(Path('generated_vectors610') / filename)
+        all_codes = np.concatenate((filtered_vectors, np.matmul(GF(filtered_vectors), gen_matrix)), axis=1)
+        time_0 = time.time()
+        filter = np.concatenate((np.expand_dims(np.amin(all_codes[:,14:19], axis=1) == np.amax(all_codes[:,14:19], axis=1),axis=1),
+                            np.expand_dims(np.amin(all_codes[:,15:20], axis=1) == np.amax(all_codes[:,15:20], axis=1),axis=1),
+                            np.expand_dims(np.amin(all_codes[:,16:21], axis=1) == np.amax(all_codes[:,16:21], axis=1),axis=1)), axis=1)
+        filter = np.any(filter, axis=1)
+        filtered_codes = all_codes[~filter]
+        np.save(Path('generated_vectors610_filtered') / filename, filtered_codes)
+        print(filename)
+        time_1 = time.time()
+        # print(f'filtered codes shape: {filtered_codes.shape}')
+        # print(f'filtering took {time_1-time_0} secs')
     # code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
     # if save_code_book:
     # with open(f'generated_vectors610_filtered/filtered_vecs_18_1.npy', 'wb') as f:
     #     np.save(f, np.array(filtered_codes))
     print('finish create indices')
-    return filtered_codes
 
 
 def calc_edit_dist(words_tuple):
@@ -166,7 +167,7 @@ def filter_codes_by_edit_dist(init_code_book, distance_matrix):
 
 
 if __name__ == '__main__':
-    unfiltered_code_book = create_indices(k=18, save_code_book=False)
+    create_indices(k=18)
 
     # unfiltered_code_book = np.load('generated_vectors610_filtered/filtered_vecs_18_1.npy')
     # distance_mat = get_edit_dist_matrix(unfiltered_code_book)
