@@ -1,5 +1,7 @@
 from itertools import product
 from pathlib import Path
+import pickle
+import tracemalloc
 from typing import Tuple
 import numpy as np
 import os
@@ -84,74 +86,69 @@ def get_generator_matrix(message_len, redundancy_len):
     return A_matrix
 
 
-def create_indices(k: int):
+def generate_codes(k: int):
     print('starting get_code_dimensions')
     message_len, redundancy_len = get_code_dimensions(k)
     # total_data_len = message_len - redundancy_len
     # print('starting FilteredVectors')
     # # filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN,
     # #                                    padding=total_data_len - k, save_vectors=save_code_book).generate_vectors()
-    print('starting gen mat')
     gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
     for filename in os.listdir('generated_vectors610'):
         filtered_vectors = np.load(Path('generated_vectors610') / filename)
         all_codes = np.concatenate((filtered_vectors, np.matmul(GF(filtered_vectors), gen_matrix)), axis=1)
-        time_0 = time.time()
+        # a filter that checks for homopolymers created by concatanating the message to the redundancy
         filter = np.concatenate((np.expand_dims(np.amin(all_codes[:,14:19], axis=1) == np.amax(all_codes[:,14:19], axis=1),axis=1),
                             np.expand_dims(np.amin(all_codes[:,15:20], axis=1) == np.amax(all_codes[:,15:20], axis=1),axis=1),
                             np.expand_dims(np.amin(all_codes[:,16:21], axis=1) == np.amax(all_codes[:,16:21], axis=1),axis=1)), axis=1)
         filter = np.any(filter, axis=1)
-        filtered_codes = all_codes[~filter]
+        filtered_codes = all_codes[~filter].astype(np.int8)
         np.save(Path('generated_vectors610_filtered') / filename, filtered_codes)
         print(filename)
-        time_1 = time.time()
-        # print(f'filtered codes shape: {filtered_codes.shape}')
-        # print(f'filtering took {time_1-time_0} secs')
-    # code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
-    # if save_code_book:
-    # with open(f'generated_vectors610_filtered/filtered_vecs_18_1.npy', 'wb') as f:
-    #     np.save(f, np.array(filtered_codes))
     print('finish create indices')
 
 
 def calc_edit_dist(words_tuple):
-    word1, word2, i, j = words_tuple
-    word1 = str(word1).replace('[', '').replace(']', '').replace(' ', '')
-    word2 = str(word2).replace('[', '').replace(']', '').replace(' ', '')
-    return align(word1, word2)['editDistance'] < 3, i, j
+    # word1, word2 = words_tuple
+    word1 = str(words_tuple[:21]).replace('[','').replace(',','').replace(']','').replace(' ','')
+    word2 = str(words_tuple[21:]).replace('[','').replace(',','').replace(']','').replace(' ','')
+    return align(word1, word2)['editDistance'] < 3, word1, word2
 
 
-def calc_edit_dist_man(words_tuple):
-    word1, word2, i, j = words_tuple
-    word1 = str(word1).replace('[', '').replace(']', '').replace(' ', '')
-    word2 = str(word2).replace('[', '').replace(']', '').replace(' ', '')
-    return levenshtein_with_limit(word1, word2) < 3, i, j
-
-
-def get_edit_dist_matrix(code_list: list):
-    word_tuples = list()
+def get_edit_dist_matrix(codes: np.array):
+    n_rows = codes.shape[0]
+    print(f'n_rows = {n_rows}')
+    word_tuples = np.zeros(shape=(1, 2*codes.shape[1]),dtype=np.int8)
+    print('start matrix calc')
     time_0 = time.time()
-    for i in range(len(code_list)):
-        for j in range(i + 1, len(code_list)):
-            word_tuples.append((code_list[i], code_list[j], i, j))
-    time_1 = time.time()
-    print(f'tuples took {time_1 - time_0}, starting Pool')
-    with Pool() as p:
-        results = list(p.map(calc_edit_dist, word_tuples))
-    # with Pool() as p:
-    #     results2 = list(p.map(calc_edit_dist_man, word_tuples))
-    time_2 = time.time()
-    print(f'edlib took {time_2 - time_1}')
-    # print(f'levenshtein_with_limit took {time_2 - time_1}')
-    # print(f'resulst == results2?  {results == results2}')
-
-
-    dim = len(code_list)
+    tracemalloc.start()
+    for i in range(1, int(n_rows/2)):
+        words = np.concatenate((codes, np.roll(codes, shift=i, axis=0)), axis=1)
+        word_tuples = np.concatenate((word_tuples,words),axis=0)
+        # print(i)
+        if i % int(n_rows / 100) == 0:
+            print(i)
+            print(tracemalloc.get_tracemalloc_memory())
+            print(word_tuples.shape)
+            with Pool() as p:
+                results = list(p.map(calc_edit_dist, word_tuples[1:].tolist()))
+            with open(f'edit_distances_01/{int(i / (n_rows / 100))}.pkl','wb') as f:
+                pickle.dump(results, f)
+            word_tuples = np.zeros(shape=(1, 2*codes.shape[1]),dtype=np.int8)
+    print(f'word_tuples.shape = {word_tuples.shape}')
+    dim = len(codes)
     shape = dim, dim
     matrix = np.zeros(shape=shape, dtype=np.int8)
     for dist, i, j in results:
-        matrix[i][j] = dist
+        matrix[i,j] = dist
     return matrix
+
+    time_1 = time.time()
+    print(f'tuples took {time_1 - time_0}, starting Pool')
+    time_2 = time.time()
+    print(f'edlib took {time_2 - time_1}')
+
+
 
 
 def filter_codes_by_edit_dist(init_code_book, distance_matrix):
@@ -167,10 +164,12 @@ def filter_codes_by_edit_dist(init_code_book, distance_matrix):
 
 
 if __name__ == '__main__':
-    create_indices(k=18)
+    # generate_codes(k=18)
 
-    # unfiltered_code_book = np.load('generated_vectors610_filtered/filtered_vecs_18_1.npy')
-    # distance_mat = get_edit_dist_matrix(unfiltered_code_book)
+    filtered_code_book = np.load('generated_vectors610_filtered/filtered_vecs_18_1.npy')
+    frac = int(filtered_code_book.shape[0] / 100)
+    filtered_code_book = filtered_code_book[0:frac,:]
+    distance_mat = get_edit_dist_matrix(filtered_code_book)
 
 
     # filtered_code_book = filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)

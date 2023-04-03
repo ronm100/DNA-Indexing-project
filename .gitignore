@@ -3,3 +3,7 @@
 .idea/*
 *.npy
 .__pycache__/*
+*.pkl
+*.log
+*.dat
+*.pyc
