@@ -115,7 +115,7 @@ def calc_edit_dist(words_tuple):
     return align(word1, word2)['editDistance'] < 3, word1, word2
 
 
-def get_edit_dist_matrix(codes: np.array):
+def calc_distances(codes: np.array):
     n_rows = codes.shape[0]
     print(f'n_rows = {n_rows}')
     word_tuples = np.zeros(shape=(1, 2*codes.shape[1]),dtype=np.int8)
@@ -148,6 +148,9 @@ def get_edit_dist_matrix(codes: np.array):
     time_2 = time.time()
     print(f'edlib took {time_2 - time_1}')
 
+def calc_edit_dist_matrix(dists_dir):
+    for index, filename in enumerate(os.listdir(dir)):
+
 
 
 
@@ -169,7 +172,7 @@ if __name__ == '__main__':
     filtered_code_book = np.load('generated_vectors610_filtered/filtered_vecs_18_1.npy')
     frac = int(filtered_code_book.shape[0] / 100)
     filtered_code_book = filtered_code_book[0:frac,:]
-    distance_mat = get_edit_dist_matrix(filtered_code_book)
+    distance_mat = calc_distances(filtered_code_book)
 
 
     # filtered_code_book = filter_codes_by_edit_dist(unfiltered_code_book, distance_mat)
