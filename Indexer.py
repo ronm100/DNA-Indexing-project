@@ -1,32 +1,33 @@
 from itertools import product
+from pathlib import Path
+import pickle
 from typing import Tuple
 import numpy as np
-import math
+import os
 import galois
 from filtered_vectors import FilteredVectors
+from multiprocessing import Pool
 from edlib import align
 
 GF = galois.GF(4)
 HMPLMR_LEN = 5
 
-def has_bad_sequence(vec: Tuple) -> bool:
-    vec = list(vec)
-    for i in range(len(vec) - HMPLMR_LEN + 1):
-        if vec[i: i + HMPLMR_LEN] == [0] * HMPLMR_LEN or vec[i: i + HMPLMR_LEN] == [1] * HMPLMR_LEN or \
-                vec[i: i + HMPLMR_LEN] == [2] * HMPLMR_LEN or \
-                vec[i: i + HMPLMR_LEN] == [3] * HMPLMR_LEN:
-            return True
-
-
 def get_code_dimensions(data_len: int) -> Tuple[int, int]:
-    for redundancy_len in range(100):
+    """
+    Calculates the number of redundancy letters(r) and the total coded message length(n) based on the encoded data length(k), according to Hamming code.
+    """
+
+    for redundancy_len in range(data_len):
         message_len = ((4 ** redundancy_len) - 1) / 3
-        if data_len <= message_len - redundancy_len:
+        if data_len == message_len - redundancy_len:
             return message_len, redundancy_len
-    return None, None  # Shouldn't get here
+    raise ValueError('data_len is probably too big')
 
+def get_parity_check_matrix(message_len: int, redundancy_len: int) -> np.array:
+    """
+    Calculates and returns the parity check matrix of quaternary Hamming code.
+    """
 
-def get_parity_check_matrix(message_len, redundancy_len):
     total_len = 1
     curr_block_exp = 1
     vector_space = [0, 1, 2, 3]
@@ -43,10 +44,15 @@ def get_parity_check_matrix(message_len, redundancy_len):
     return parity_check_matrix.astype(int)
 
 
-def get_generator_matrix(message_len, redundancy_len):
-    # returns A matrix
+def get_generator_matrix(message_len: int, redundancy_len: int) -> np.array:
+    """
+    Calculates and returns the generator matrix of quaternary Hamming code, exlcluding the columns that are part of the identinty matrix.
+    This is done to avoid unnecessary matrix multiplication.
+    """
+
+    # returns 'A' matrix
     parity_check_matrix = get_parity_check_matrix(message_len, redundancy_len)
-    # Delete I cols to get A matrix
+    # Delete 'I' cols to get 'A' matrix
     idx_to_delete = []
     for col_idx in range(len(parity_check_matrix.T)):
         if sum(parity_check_matrix[:, col_idx]) == 1:
@@ -56,32 +62,148 @@ def get_generator_matrix(message_len, redundancy_len):
 
     return A_matrix
 
+def generate_vecs_without_homopolymers(k: int, raw_vec_dir: Path):
+    """
+    Generates and saves all quaternary vectors of size k that do not contain homopolymers.
+    """
 
-def create_indices(k: int, save_code_book: bool = False):
-    vector_space = [0, 1, 2, 3]
     message_len, redundancy_len = get_code_dimensions(k)
     total_data_len = message_len - redundancy_len
-    filtered_vectors = FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN, padding=total_data_len - k).generate_vectors()
+    FilteredVectors(vec_size=k, hmplmr_size=HMPLMR_LEN, padding=total_data_len - k, save_dir=raw_vec_dir).generate_vectors()
+
+def generate_hamming_codes(k: int, raw_vec_dir: Path, hamming_code_dir: Path):
+    """
+    Multiplies vectors by generator matrix to produce hamming code, then filters out codes that contain homopolymers.
+    """
+
+    message_len, redundancy_len = get_code_dimensions(k)
+
     gen_matrix = get_generator_matrix(int(message_len), redundancy_len)
-    all_codes = [np.concatenate([vec, np.matmul(GF(vec.transpose()), gen_matrix)]) for vec in filtered_vectors]
-    filtered_codes = [code for code in all_codes if not has_bad_sequence(code)]
-    #code_book = {vec: np.dot(vec.transpose(), gen_matrix) for vec in filtered_vectors}
-    if save_code_book:
-        with open(f'code_book_{message_len}.npy', 'wb') as f:
-            np.save(f, np.array(filtered_codes))
-    return filtered_codes
+    for filename in os.listdir(raw_vec_dir):
+        filtered_vectors = np.load(raw_vec_dir / filename)
+        all_codes = np.concatenate((filtered_vectors, np.matmul(GF(filtered_vectors), gen_matrix)), axis=1)
 
-def get_edit_dist_matrix (code_list: list):
-    shape = len(code_list),len(code_list)
-    matrix = np.zeros(shape = shape, dtype= np.int8) - np.ones(shape = shape, dtype= np.int8)
-    for i in range(len(code_list)):
-        for j in range(i+1, len(code_list)):
-            matrix[i][j] = align(str(code_list[i]), str(code_list[j]))['editDistance'] < 3
-    return matrix
+        # a filter that checks for homopolymers created by concatanating the message to the redundancy
+        filter = np.concatenate((np.expand_dims(np.amin(all_codes[:,k-4:k+1], axis=1) == np.amax(all_codes[:,k-4:k+1], axis=1),axis=1),
+                            np.expand_dims(np.amin(all_codes[:,k-3:k+2], axis=1) == np.amax(all_codes[:,k-3:k+2], axis=1),axis=1),
+                            np.expand_dims(np.amin(all_codes[:,k-2:k+3], axis=1) == np.amax(all_codes[:,k-2:k+3], axis=1),axis=1)), axis=1)
+        filter = np.any(filter, axis=1)
+        filtered_codes = all_codes[~filter].astype(np.int8)
+        np.save(hamming_code_dir / filename, filtered_codes)
 
+
+def calc_edit_dist(words_tuple) -> Tuple[int,int,int]:
+    """
+    Calculates the edit distance between two words using edlib.
+    Returns the edit distance and both words (neede for matrix generation).
+    """
+
+    word1 = str(words_tuple[:21]).replace('[','').replace(',','').replace(']','').replace(' ','')
+    word2 = str(words_tuple[21:]).replace('[','').replace(',','').replace(']','').replace(' ','')
+    return align(word1, word2)['editDistance'] < 3, word1, word2
+
+
+def calc_distances(codes: np.array, edit_dists_dir: Path):
+    """
+    Calculates and saves the edit distance between each pair of words in a given code.
+    """
+
+    n_rows = codes.shape[0]
+    word_tuples = np.zeros(shape=(1, 2*codes.shape[1]),dtype=np.int8)
+    j = 0
+
+    for i in range(1, int(n_rows/2)):
+        # Generate input pairs.
+        words = np.concatenate((codes, np.roll(codes, shift=i, axis=0)), axis=1)
+        word_tuples = np.concatenate((word_tuples,words),axis=0)
+
+        # Calculate edit distances once a large enough input is created.
+        if i % int(n_rows / 100) == 0:
+            with Pool() as p:
+                results = list(p.map(calc_edit_dist, word_tuples[1:].tolist()))
+            with open(edit_dists_dir / f'{j}.pkl','wb') as f:
+                pickle.dump(results, f)
+            word_tuples = np.zeros(shape=(1, 2*codes.shape[1]),dtype=np.int8)
+            j += 1
+
+def index_codes(codes: np.array, edit_dists_dir: Path):
+    """
+    Maps code words to integers anc vice versa, used in edit distance matrix filtering.
+    """
+
+    word_to_num = {str(codes[i,:]).replace('[','').replace(',','').replace(']','').replace(' ',''):i for i in range(len(codes))}
+    num_to_word = {i : str(codes[i,:]).replace('[','').replace(',','').replace(']','').replace(' ','') for i in range(len(codes))}
+    with open(edit_dists_dir / 'word_to_num.pkl', 'wb') as f:
+        pickle.dump(word_to_num, f)
+    with open(edit_dists_dir / 'num_to_word.pkl', 'wb') as f:
+        pickle.dump(num_to_word, f)
+
+def calc_edit_dist_matrix(edit_dists_dir: Path):
+    """
+    Uses pre-generated edit distance files to fill out the edit distance matrix.
+    matrix[i,j] = 1 iff EditDistance(i,k) < 3.
+    matrix[i,j] = 0 otherwise.
+    """
+
+    with open(edit_dists_dir / 'word_to_num.pkl','rb') as f:
+        word_to_num = pickle.load(f)
+
+    dim = len(word_to_num)
+    shape = dim, dim
+    matrix = np.zeros(shape=shape, dtype=np.int8)
+
+    for filename in os.listdir(edit_dists_dir):
+        if 'dists_' not in filename:
+            continue
+        with open(edit_dists_dir / filename,'rb') as f:
+            dists = pickle.load(f)
+        dists = [dist for dist in dists if dist[0] == True]
+        for dist in dists:
+            matrix[word_to_num[dist[1]], word_to_num[dist[2]]] = 1
+
+    np.save(edit_dists_dir / 'dist_matrix.npy', matrix)
+
+
+def filter_codes_by_edit_dist(edit_dists_dir: Path):
+    """
+    Iteratively removes words with maximal number of of other words that are to close untill we are left with the 0 matrix.
+    Each row of the matrix in the end represents a word in our final code.
+    """
+
+    with open(edit_dists_dir / 'num_to_word.pkl', 'rb') as f:
+        num_to_word = pickle.load(f)
+
+    distance_matrix = np.load(edit_dists_dir / 'dist_matrix.npy')
+    while np.any(distance_matrix):
+        n_mismatch = np.sum(distance_matrix, axis=1)
+        max_val_idx = np.argmax(n_mismatch)
+        distance_matrix[max_val_idx,:] = np.zeros(shape=distance_matrix.shape[0], dtype=np.int8)
+        distance_matrix[:,max_val_idx] = np.zeros(shape=distance_matrix.shape[0], dtype=np.int8)
+        del num_to_word[max_val_idx]
+
+    with open(edit_dists_dir / 'final_codes.pkl', 'wb') as f:
+        pickle.dump(num_to_word, f)
 
 if __name__ == '__main__':
-    code_book = create_indices(k=7, save_code_book = True)
-    distance_matrix =  get_edit_dist_matrix(code_book)
-    # filtered_vectors = FilteredVectors(vec_size=3, hmplmr_size=2).generate_vectors()
-    # print(filtered_vectors)
+    k = 18
+    raw_vec_dir = Path('generated_vectors')
+    hamming_code_dir = Path('hamming_codes')
+    edit_dists_dir = Path('edit_dists')
+    
+    for dir in [raw_vec_dir, hamming_code_dir, edit_dists_dir]:
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        else:
+            raise ValueError(f'trying to override {dir}')
+    poc_percentage = 1 / 100
+
+    generate_vecs_without_homopolymers(k=k, raw_vec_dir=raw_vec_dir)
+    generate_hamming_codes(k=k, raw_vec_dir=raw_vec_dir, hamming_code_dir=hamming_code_dir)
+
+    filtered_code_book = np.load(hamming_code_dir / 'filtered_vecs_18_1.npy')
+    frac = int(filtered_code_book.shape[0] * poc_percentage)
+    filtered_code_book = filtered_code_book[0:frac,:]
+    calc_distances(filtered_code_book, edit_dists_dir=edit_dists_dir)
+    index_codes(filtered_code_book, edit_dists_dir=edit_dists_dir)
+    calc_edit_dist_matrix(edit_dists_dir)
+    filter_codes_by_edit_dist(edit_dists_dir)

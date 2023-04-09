@@ -2,3 +2,8 @@
 .vscode/launch.json
 .idea/*
 *.npy
+.__pycache__/*
+*.pkl
+*.log
+*.dat
+*.pyc
