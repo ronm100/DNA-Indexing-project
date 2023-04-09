@@ -5,6 +5,10 @@ import numpy as np
 VECTOR_SERIALIZATION_THRESHOLD = 5000000
 
 class FilteredVectors:
+    """
+    A class that searches for all quatrenary vectors of size k without homopolymers using recursice DFS.
+    """
+
     def __init__(self, vec_size: int, hmplmr_size: int, padding: int, save_dir: Path):
         self.vec_size = vec_size
         self.hmplmr_size = hmplmr_size
@@ -15,6 +19,9 @@ class FilteredVectors:
         self.vec_count = 1 # * VECTOR_SERIALIZATION_THRESHOLD
 
     def update_saved_vecs(self, vec: list = None):
+        """
+        Serializes vectors once threshold is reached, not enough memory to hold all vectors.
+        """
         if vec:
             self.vectors.append(np.pad(np.array(vec, dtype=np.int8), (0, self.padding), 'wrap'))
         if (len(self.vectors) == VECTOR_SERIALIZATION_THRESHOLD or vec is None):
@@ -28,7 +35,6 @@ class FilteredVectors:
         for i in range(4):
             self.__explore_node(node=i, curr_vec=[])
         self.update_saved_vecs()
-        return self.vectors
 
     def __explore_node(self, node: int, curr_vec):
         old_hmplmr = list(self.curr_hmplmr)
