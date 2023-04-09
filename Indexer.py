@@ -63,9 +63,9 @@ def generate_hamming_codes(k: int, raw_vec_dir: Path, hamming_code_dir: Path):
         filtered_vectors = np.load(raw_vec_dir / filename)
         all_codes = np.concatenate((filtered_vectors, np.matmul(GF(filtered_vectors), gen_matrix)), axis=1)
         # a filter that checks for homopolymers created by concatanating the message to the redundancy
-        filter = np.concatenate((np.expand_dims(np.amin(all_codes[:,14:19], axis=1) == np.amax(all_codes[:,14:19], axis=1),axis=1),
-                            np.expand_dims(np.amin(all_codes[:,15:20], axis=1) == np.amax(all_codes[:,15:20], axis=1),axis=1),
-                            np.expand_dims(np.amin(all_codes[:,16:21], axis=1) == np.amax(all_codes[:,16:21], axis=1),axis=1)), axis=1)
+        filter = np.concatenate((np.expand_dims(np.amin(all_codes[:,k-4:k+1], axis=1) == np.amax(all_codes[:,k-4:k+1], axis=1),axis=1),
+                            np.expand_dims(np.amin(all_codes[:,k-3:k+2], axis=1) == np.amax(all_codes[:,k-3:k+2], axis=1),axis=1),
+                            np.expand_dims(np.amin(all_codes[:,k-2:k+3], axis=1) == np.amax(all_codes[:,k-2:k+3], axis=1),axis=1)), axis=1)
         filter = np.any(filter, axis=1)
         filtered_codes = all_codes[~filter].astype(np.int8)
         np.save(hamming_code_dir / filename, filtered_codes)
@@ -122,10 +122,11 @@ def calc_edit_dist_matrix(edit_dists_dir: Path):
 
 
 
-def filter_codes_by_edit_dist(distance_matrix: Path):
-    with open(distance_matrix / 'num_to_word.pkl', 'rb') as f:
+def filter_codes_by_edit_dist(edit_dists_dir: Path):
+    with open(edit_dists_dir / 'num_to_word.pkl', 'rb') as f:
         num_to_word = pickle.load(f)
 
+    distance_matrix = np.load(edit_dists_dir / 'dist_matrix.npy')
     while np.any(distance_matrix):
         n_mismatch = np.sum(distance_matrix, axis=1)
         max_val_idx = np.argmax(n_mismatch)
@@ -133,30 +134,29 @@ def filter_codes_by_edit_dist(distance_matrix: Path):
         distance_matrix[:,max_val_idx] = np.zeros(shape=distance_matrix.shape[0], dtype=np.int8)
         del num_to_word[max_val_idx]
 
-    with open(distance_matrix / 'final_codes.pkl', 'wb') as f:
+    with open(edit_dists_dir / 'final_codes.pkl', 'wb') as f:
         pickle.dump(num_to_word, f)
 
 if __name__ == '__main__':
-    k = 3
-    # k = 18
+    k = 18
     raw_vec_dir = Path('generated_vectors')
     hamming_code_dir = Path('hamming_codes')
     edit_dists_dir = Path('edit_dists')
-    # poc_percentage = 1 / 100
-    poc_percentage = 1 
+    
+    for dir in [raw_vec_dir, hamming_code_dir, edit_dists_dir]:
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        else:
+            raise ValueError(f'trying to override {dir}')
+    poc_percentage = 1 / 100
 
-    generate_vecs_without_homopolymers(k=18, raw_vec_dir=raw_vec_dir)
-    generate_hamming_codes(k=18, raw_vec_dir=raw_vec_dir, hamming_code_dir=hamming_code_dir)
+    generate_vecs_without_homopolymers(k=k, raw_vec_dir=raw_vec_dir)
+    generate_hamming_codes(k=k, raw_vec_dir=raw_vec_dir, hamming_code_dir=hamming_code_dir)
 
-    # filtered_code_book = np.load(hamming_code_dir / 'filtered_vecs_18_1.npy')
-    filtered_code_book = np.load(hamming_code_dir / 'filtered_vecs_3_1.npy')
+    filtered_code_book = np.load(hamming_code_dir / 'filtered_vecs_18_1.npy')
     frac = int(filtered_code_book.shape[0] * poc_percentage)
     filtered_code_book = filtered_code_book[0:frac,:]
     calc_distances(filtered_code_book, edit_dists_dir=edit_dists_dir)
     index_codes(filtered_code_book, edit_dists_dir=edit_dists_dir)
     calc_edit_dist_matrix(edit_dists_dir)
-
-    distance_matrix = np.load(edit_dists_dir / 'dist_matrix.npy')
-    filter_codes_by_edit_dist(distance_matrix)
-
-# cmd = /usr/bin/python3 -u /home_nfs/ronmaishlos/DNA-Indexing-project/Indexer.py 2>&1 | tee out.log
+    filter_codes_by_edit_dist(edit_dists_dir)

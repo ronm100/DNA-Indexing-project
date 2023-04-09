@@ -14,11 +14,6 @@ class FilteredVectors:
         self.save_dir = save_dir
         self.vec_count = 1 # * VECTOR_SERIALIZATION_THRESHOLD
 
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-        else:
-            raise ValueError(f'trying to override {save_dir}')
-
     def update_saved_vecs(self, vec: list = None):
         if vec:
             self.vectors.append(np.pad(np.array(vec, dtype=np.int8), (0, self.padding), 'wrap'))
